@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic Pipeline Demo — Sugalya Arunachalam</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;display:flex;justify-content:center;padding:40px 16px}
+.wrap{background:#0d1117;color:#e6edf3;font-family:'JetBrains Mono',monospace;padding:24px;border-radius:12px;width:100%;max-width:780px;border:1px solid #21262d}
+.top-bar{display:flex;align-items:center;gap:8px;margin-bottom:20px}
+.dot{width:10px;height:10px;border-radius:50%}
+.dot-r{background:#ff5f56}.dot-y{background:#ffbd2e}.dot-g{background:#27c93f}
+.bar-title{color:#8b949e;font-size:12px;margin-left:8px}
+.domain-row{display:flex;gap:8px;margin-bottom:20px}
+.domain-btn{background:transparent;border:1px solid #30363d;color:#8b949e;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;transition:all .2s}
+.domain-btn.active{border-color:#00d4aa;color:#00d4aa;background:rgba(0,212,170,0.08)}
+.scenario-area{width:100%;background:#161b22;border:1px solid #30363d;border-radius:8px;color:#e6edf3;font-family:inherit;font-size:12px;padding:10px 12px;resize:none;min-height:70px;margin-bottom:16px;outline:none}
+.scenario-area:focus{border-color:#00d4aa}
+.run-btn{background:#00d4aa;color:#0d1117;border:none;padding:8px 20px;border-radius:6px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;width:100%}
+.run-btn:hover{background:#00b894}
+.run-btn:disabled{background:#21262d;color:#484f58;cursor:not-allowed}
+.nodes-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:20px 0}
+.node-card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:12px;transition:all .3s;position:relative}
+.node-card.active{border-color:#00d4aa;background:rgba(0,212,170,0.05)}
+.node-card.done{border-color:#238636;background:rgba(35,134,54,0.05)}
+.node-card.error{border-color:#da3633;background:rgba(218,54,51,0.05)}
+.node-label{font-size:10px;color:#484f58;margin-bottom:4px}
+.node-name{font-size:13px;font-weight:700;color:#e6edf3;margin-bottom:2px}
+.node-sub{font-size:10px;color:#6e7681}
+.node-status{position:absolute;top:10px;right:10px;font-size:14px}
+.spin{display:inline-block;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.terminal{background:#010409;border:1px solid #21262d;border-radius:8px;padding:14px;min-height:160px;font-size:11px;line-height:1.7;overflow-y:auto;max-height:260px}
+.t-line{margin-bottom:2px}
+.t-key{color:#00d4aa}.t-arrow{color:#6e7681}.t-val{color:#e6edf3}.t-muted{color:#484f58}
+.t-warn{color:#d29922}.t-ok{color:#3fb950}.t-head{color:#58a6ff;font-weight:700;margin-bottom:6px}.t-err{color:#f85149}
+.status-bar{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.status-dot{width:7px;height:7px;border-radius:50%;background:#21262d}
+.status-dot.live{background:#00d4aa;animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.status-text{font-size:11px;color:#8b949e}
+.metrics-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.metric{background:#161b22;border:1px solid #21262d;border-radius:6px;padding:8px 10px;text-align:center}
+.metric-val{font-size:16px;font-weight:700;color:#00d4aa}
+.metric-lbl{font-size:10px;color:#6e7681;margin-top:2px}
+.section-label{font-size:10px;color:#484f58;letter-spacing:1px;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top-bar">
+    <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+    <span class="bar-title">agent_pipeline.py — live demo</span>
+  </div>
+
+  <div class="section-label">// DOMAIN</div>
+  <div class="domain-row">
+    <button class="domain-btn active" onclick="setDomain('supply')" id="btn-supply">Supply Chain</button>
+    <button class="domain-btn" onclick="setDomain('health')" id="btn-health">Healthcare</button>
+  </div>
+
+  <div class="section-label">// SCENARIO INPUT</div>
+  <textarea class="scenario-area" id="scenario" placeholder="Describe your scenario... e.g. 'SKU-4821: 2,400 units of winter coats, last sold Oct 2023, holding cost $18/unit/month, 3 regional warehouses with capacity'"></textarea>
+
+  <button class="run-btn" id="runBtn" onclick="runPipeline()">&#9654; run pipeline</button>
+
+  <div class="section-label" style="margin-top:20px">// PIPELINE NODES</div>
+  <div class="nodes-grid" id="nodesGrid">
+    <div class="node-card" id="node-0"><div class="node-label">node_1</div><div class="node-name">Detect</div><div class="node-sub">Scan signals</div><div class="node-status" id="ns-0"></div></div>
+    <div class="node-card" id="node-1"><div class="node-label">node_2</div><div class="node-name">Retrieve</div><div class="node-sub">RAG over data</div><div class="node-status" id="ns-1"></div></div>
+    <div class="node-card" id="node-2"><div class="node-label">node_3</div><div class="node-name">Reason</div><div class="node-sub">LLM planner</div><div class="node-status" id="ns-2"></div></div>
+    <div class="node-card" id="node-3"><div class="node-label">node_4</div><div class="node-name">Act (MCP)</div><div class="node-sub">Tool calls</div><div class="node-status" id="ns-3"></div></div>
+    <div class="node-card" id="node-4"><div class="node-label">node_5</div><div class="node-name">Human Loop</div><div class="node-sub">Confidence gate</div><div class="node-status" id="ns-4"></div></div>
+    <div class="node-card" id="node-5"><div class="node-label">node_6</div><div class="node-name">Recommend</div><div class="node-sub">Final output</div><div class="node-status" id="ns-5"></div></div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">ready &middot; awaiting input</span>
+  </div>
+
+  <div class="terminal" id="terminal">
+    <div class="t-line t-muted"># select a domain, enter your scenario, click run</div>
+    <div class="t-line t-muted"># each node calls the live AI pipeline</div>
+  </div>
+
+  <div class="metrics-row" id="metricsRow" style="display:none">
+    <div class="metric"><div class="metric-val" id="m-latency">&#8212;</div><div class="metric-lbl">latency</div></div>
+    <div class="metric"><div class="metric-val" id="m-confidence">&#8212;</div><div class="metric-lbl">confidence</div></div>
+    <div class="metric"><div class="metric-val" id="m-hitl">&#8212;</div><div class="metric-lbl">HITL triggered</div></div>
+  </div>
+</div>
+
+<script>
+// ===================================================
+// PASTE YOUR ANTHROPIC API KEY BELOW
+// Get one at: https://console.anthropic.com
+// Use a separate key just for this demo
+// ===================================================
+const API_KEY = 'sk-ant-YOUR-KEY-HERE';
+// ===================================================
+
+let domain = 'supply';
+let running = false;
+let startTime = 0;
+
+function setDomain(d) {
+  domain = d;
+  document.getElementById('btn-supply').className = 'domain-btn' + (d==='supply'?' active':'');
+  document.getElementById('btn-health').className = 'domain-btn' + (d==='health'?' active':'');
+  const ta = document.getElementById('scenario');
+  ta.placeholder = d === 'supply'
+    ? "e.g. 'SKU-4821: 2,400 units winter coats, last sold Oct 2023, holding cost $18/unit/month, 3 regional warehouses'"
+    : "e.g. 'Patient ID 7742: diabetic, last HbA1c Jan 2024, missed 2 follow-ups, overdue for retinal screening and foot exam'";
+}
+
+function resetNodes() {
+  for (let i=0;i<6;i++) {
+    document.getElementById('node-'+i).className = 'node-card';
+    document.getElementById('ns-'+i).innerHTML = '';
+  }
+}
+
+function setNode(i, state) {
+  document.getElementById('node-'+i).className = 'node-card ' + state;
+  const s = document.getElementById('ns-'+i);
+  if (state==='active') s.innerHTML = '<span class="spin">&#10227;</span>';
+  else if (state==='done') s.innerHTML = '<span style="color:#3fb950">&#10003;</span>';
+  else if (state==='error') s.innerHTML = '<span style="color:#f85149">&#10007;</span>';
+  else s.innerHTML = '';
+}
+
+function log(html) {
+  const t = document.getElementById('terminal');
+  t.innerHTML += '<div class="t-line">'+html+'</div>';
+  t.scrollTop = t.scrollHeight;
+}
+
+function setStatus(text, live) {
+  document.getElementById('statusText').textContent = text;
+  document.getElementById('statusDot').className = 'status-dot' + (live?' live':'');
+}
+
+async function callClaude(systemPrompt, userMsg) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1000,
+      system: systemPrompt,
+      messages: [{role:'user', content: userMsg}]
+    })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.content[0].text;
+}
+
+function parseNodeOutput(text) {
+  try { return JSON.parse(text.replace(/```json|```/g,'').trim()); }
+  catch(e) { return {raw: text}; }
+}
+
+const nodePrompts = {
+  supply: [
+    {sys:`You are the Detect node in a supply chain AI pipeline. Analyze the input and output ONLY a JSON object with: flags (array of 2-3 strings describing what was detected), signal_count (number), confidence (0.0-1.0), next_node (string "retrieve"). Be concise.`,label:'detect'},
+    {sys:`You are the Retrieve node. Given detected flags, simulate RAG retrieval. Output ONLY JSON with: retrieved_docs (array of 2-3 short strings describing what was found), context_quality (string "high/medium/low"), next_node "reason".`,label:'retrieve'},
+    {sys:`You are the Reason node (LLM planner). Given context, reason about root causes. Output ONLY JSON with: root_cause (string, 1 sentence), risk_level (string "high/medium/low"), reasoning_steps (array of 2 short strings), confidence (0.0-1.0), next_node "act".`,label:'reason'},
+    {sys:`You are the Act (MCP) node. Simulate tool calls for supply chain. Output ONLY JSON with: tools_called (array of 2 strings like "inventory_api.get_warehouse_capacity"), tool_results (array of 2 short result strings), next_node "human_loop".`,label:'act(mcp)'},
+    {sys:`You are the Human Loop node. Assess if human review is needed. Output ONLY JSON with: review_required (boolean), reason (string, 1 sentence), confidence_gate (number 0.0-1.0), approved (boolean true), next_node "recommend".`,label:'human_loop'},
+    {sys:`You are the Recommend node. Generate final supply chain recommendations. Output ONLY JSON with: primary_action (string), options (array of 3 objects each with action and expected_impact strings), financial_recovery_estimate (string), priority (string "urgent/high/medium").`,label:'recommend'}
+  ],
+  health: [
+    {sys:`You are the Detect node in a healthcare AI pipeline. Analyze the patient input and output ONLY JSON with: care_gaps (array of 2-3 strings), risk_flags (array of 2 strings), signal_count (number), confidence (0.0-1.0), next_node "retrieve".`,label:'detect'},
+    {sys:`You are the Retrieve node. Simulate RAG over clinical knowledge. Output ONLY JSON with: retrieved_docs (array of 2-3 short strings like clinical guideline names), context_quality "high/medium/low", next_node "reason".`,label:'retrieve'},
+    {sys:`You are the Reason node (clinical planner). Reason about care gaps. Output ONLY JSON with: clinical_assessment (string, 1 sentence), risk_level "high/medium/low", reasoning_steps (array of 2 short strings), confidence (0.0-1.0), next_node "act".`,label:'reason'},
+    {sys:`You are the Act (MCP) node for healthcare. Output ONLY JSON with: tools_called (array of 2 strings like "ehr_api.get_last_visit"), tool_results (array of 2 short result strings), next_node "human_loop".`,label:'act(mcp)'},
+    {sys:`You are the Human Loop node for a clinical pathway. Output ONLY JSON with: review_required (boolean), reason (string, 1 sentence), confidence_gate (number 0.0-1.0), clinician_approved (boolean true), next_node "recommend".`,label:'human_loop'},
+    {sys:`You are the Recommend node for healthcare. Output ONLY JSON with: primary_action (string), care_pathway (array of 3 objects each with step and rationale strings), outreach_priority "urgent/high/medium", estimated_risk_reduction (string).`,label:'recommend'}
+  ]
+};
+
+function renderNodeOutput(label, data) {
+  log('<span class="t-head">// node: '+label+'</span>');
+  if (data.raw) { log('<span class="t-key">output</span><span class="t-arrow"> &rarr; </span><span class="t-val">'+data.raw.substring(0,200)+'</span>'); return; }
+  for (const [k,v] of Object.entries(data)) {
+    if (Array.isArray(v)) {
+      log('<span class="t-key">'+k+'</span><span class="t-arrow"> &rarr;</span>');
+      v.forEach((item,i) => {
+        const s = typeof item === 'object' ? JSON.stringify(item) : item;
+        log('&nbsp;&nbsp;<span class="t-arrow">['+i+']</span> <span class="t-val">'+s+'</span>');
+      });
+    } else if (typeof v === 'boolean') {
+      log('<span class="t-key">'+k+'</span><span class="t-arrow"> &rarr; </span><span class="'+(v?'t-ok':'t-warn')+'">'+v+'</span>');
+    } else if (k==='confidence'||k==='confidence_gate') {
+      const pct = Math.round(parseFloat(v)*100);
+      log('<span class="t-key">'+k+'</span><span class="t-arrow"> &rarr; </span><span class="'+(pct>=80?'t-ok':pct>=60?'t-warn':'t-err')+'">'+pct+'%</span>');
+    } else {
+      log('<span class="t-key">'+k+'</span><span class="t-arrow"> &rarr; </span><span class="t-val">'+v+'</span>');
+    }
+  }
+}
+
+async function runPipeline() {
+  if (running) return;
+  const scenario = document.getElementById('scenario').value.trim();
+  if (!scenario) { alert('Enter a scenario first'); return; }
+  if (API_KEY === 'sk-ant-YOUR-KEY-HERE') { alert('Add your Anthropic API key to the HTML file first (line 3 of the script).'); return; }
+  running = true;
+  startTime = Date.now();
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('terminal').innerHTML = '';
+  document.getElementById('metricsRow').style.display = 'none';
+  resetNodes();
+  setStatus('pipeline running...', true);
+  log('<span class="t-muted">$ python agent_pipeline.py --domain='+domain+'</span>');
+  log('<span class="t-muted">initializing AgentState(context, memory, tools)...</span>');
+  log('');
+
+  const prompts = nodePrompts[domain];
+  let context = scenario;
+  let lastData = {};
+  let finalConfidence = 0.85;
+  let hitlTriggered = false;
+
+  try {
+    for (let i = 0; i < 6; i++) {
+      setNode(i, 'active');
+      setStatus('running node_'+(i+1)+': '+prompts[i].label, true);
+      const response = await callClaude(prompts[i].sys, 'Scenario: ' + context + (i > 0 ? '\nPrevious output: ' + JSON.stringify(lastData) : ''));
+      lastData = parseNodeOutput(response);
+      if (lastData.confidence || lastData.confidence_gate) finalConfidence = lastData.confidence || lastData.confidence_gate;
+      if (lastData.review_required !== undefined) hitlTriggered = lastData.review_required;
+      renderNodeOutput(prompts[i].label, lastData);
+      log('');
+      setNode(i, 'done');
+      context = JSON.stringify(lastData);
+      await new Promise(r => setTimeout(r, 200));
+    }
+    const elapsed = ((Date.now()-startTime)/1000).toFixed(1)+'s';
+    log('<span class="t-ok">&#10003; pipeline complete &middot; '+elapsed+'</span>');
+    setStatus('pipeline complete · '+elapsed, false);
+    document.getElementById('m-latency').textContent = elapsed;
+    document.getElementById('m-confidence').textContent = Math.round(finalConfidence*100)+'%';
+    document.getElementById('m-hitl').textContent = hitlTriggered ? 'yes' : 'no';
+    document.getElementById('metricsRow').style.display = 'grid';
+  } catch(e) {
+    log('<span class="t-err">error: '+e.message+'</span>');
+    setStatus('error', false);
+  }
+  running = false;
+  document.getElementById('runBtn').disabled = false;
+}
+</script>
+</body>
+</html>

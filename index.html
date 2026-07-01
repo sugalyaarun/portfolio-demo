@@ -12,11 +12,22 @@ body{background:#0d1117;display:flex;justify-content:center;padding:40px 16px}
 .dot{width:10px;height:10px;border-radius:50%}
 .dot-r{background:#ff5f56}.dot-y{background:#ffbd2e}.dot-g{background:#27c93f}
 .bar-title{color:#8b949e;font-size:12px;margin-left:8px}
+.section-label{font-size:10px;color:#484f58;letter-spacing:1px;margin-bottom:8px}
 .domain-row{display:flex;gap:8px;margin-bottom:20px}
 .domain-btn{background:transparent;border:1px solid #30363d;color:#8b949e;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;transition:all .2s}
 .domain-btn.active{border-color:#00d4aa;color:#00d4aa;background:rgba(0,212,170,0.08)}
-.scenario-area{width:100%;background:#161b22;border:1px solid #30363d;border-radius:8px;color:#e6edf3;font-family:inherit;font-size:12px;padding:10px 12px;resize:none;min-height:70px;margin-bottom:16px;outline:none}
-.scenario-area:focus{border-color:#00d4aa}
+.db-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:16px}
+.db-table th{color:#484f58;text-align:left;padding:6px 8px;border-bottom:1px solid #21262d;font-weight:400}
+.db-table td{padding:7px 8px;border-bottom:1px solid #161b22;color:#8b949e;cursor:pointer;transition:background .15s}
+.db-table tr:hover td{background:#161b22;color:#e6edf3}
+.db-table tr.selected td{background:rgba(0,212,170,0.07);color:#e6edf3}
+.db-table tr.selected td:first-child{border-left:2px solid #00d4aa}
+.badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px}
+.badge-red{background:rgba(218,54,51,0.15);color:#f85149}
+.badge-yellow{background:rgba(210,153,34,0.15);color:#d29922}
+.badge-green{background:rgba(63,185,80,0.15);color:#3fb950}
+.selected-box{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 12px;font-size:11px;color:#8b949e;margin-bottom:14px;min-height:48px;line-height:1.7}
+.selected-box span{color:#00d4aa}
 .run-btn{background:#00d4aa;color:#0d1117;border:none;padding:8px 20px;border-radius:6px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;width:100%}
 .run-btn:hover{background:#00b894}
 .run-btn:disabled{background:#21262d;color:#484f58;cursor:not-allowed}
@@ -44,7 +55,6 @@ body{background:#0d1117;display:flex;justify-content:center;padding:40px 16px}
 .metric{background:#161b22;border:1px solid #21262d;border-radius:6px;padding:8px 10px;text-align:center}
 .metric-val{font-size:16px;font-weight:700;color:#00d4aa}
 .metric-lbl{font-size:10px;color:#6e7681;margin-top:2px}
-.section-label{font-size:10px;color:#484f58;letter-spacing:1px;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -60,13 +70,16 @@ body{background:#0d1117;display:flex;justify-content:center;padding:40px 16px}
     <button class="domain-btn" onclick="setDomain('health')" id="btn-health">Healthcare</button>
   </div>
 
-  <div class="section-label">// SCENARIO INPUT</div>
-  <textarea class="scenario-area" id="scenario" placeholder="Describe your scenario... e.g. 'SKU-4821: 2,400 units of winter coats, last sold Oct 2023, holding cost $18/unit/month, 3 regional warehouses with capacity'"></textarea>
+  <div class="section-label" id="db-label">// INVENTORY DATABASE — select a record to analyze</div>
+  <div id="db-container"></div>
+
+  <div class="section-label">// SELECTED RECORD</div>
+  <div class="selected-box" id="selected-box">&#8212; select a row above to load it into the pipeline</div>
 
   <button class="run-btn" id="runBtn" onclick="runPipeline()">&#9654; run pipeline</button>
 
   <div class="section-label" style="margin-top:20px">// PIPELINE NODES</div>
-  <div class="nodes-grid" id="nodesGrid">
+  <div class="nodes-grid">
     <div class="node-card" id="node-0"><div class="node-label">node_1</div><div class="node-name">Detect</div><div class="node-sub">Scan signals</div><div class="node-status" id="ns-0"></div></div>
     <div class="node-card" id="node-1"><div class="node-label">node_2</div><div class="node-name">Retrieve</div><div class="node-sub">RAG over data</div><div class="node-status" id="ns-1"></div></div>
     <div class="node-card" id="node-2"><div class="node-label">node_3</div><div class="node-name">Reason</div><div class="node-sub">LLM planner</div><div class="node-status" id="ns-2"></div></div>
@@ -77,12 +90,12 @@ body{background:#0d1117;display:flex;justify-content:center;padding:40px 16px}
 
   <div class="status-bar">
     <div class="status-dot" id="statusDot"></div>
-    <span class="status-text" id="statusText">ready &middot; awaiting input</span>
+    <span class="status-text" id="statusText">ready &middot; select a record to begin</span>
   </div>
 
   <div class="terminal" id="terminal">
-    <div class="t-line t-muted"># select a domain, enter your scenario, click run</div>
-    <div class="t-line t-muted"># each node calls the live AI pipeline</div>
+    <div class="t-line t-muted"># select a record from the database above</div>
+    <div class="t-line t-muted"># the agent will detect, retrieve, reason, act, validate and recommend</div>
   </div>
 
   <div class="metrics-row" id="metricsRow" style="display:none">
@@ -94,25 +107,89 @@ body{background:#0d1117;display:flex;justify-content:center;padding:40px 16px}
 
 <script>
 // ===================================================
-// PASTE YOUR ANTHROPIC API KEY BELOW
-// Get one at: https://console.anthropic.com
-// Use a separate key just for this demo
+// PASTE YOUR GEMINI API KEY BELOW
+// Get one free at: aistudio.google.com -> Get API Key
+// No credit card needed
 // ===================================================
-const API_KEY = 'AIzaSyB3pLMg3_-AuZ3Cx8LS1tNRWn195MvuFTU';
+const API_KEY = 'YOUR-GEMINI-KEY-HERE';
 // ===================================================
 
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + API_KEY;
+
+const DB = {
+  supply: {
+    label: '// INVENTORY DATABASE — select a record to analyze',
+    headers: ['SKU', 'Product', 'Units', 'Last Sold', 'Days Idle', 'Hold Cost/mo', 'Warehouse', 'Risk'],
+    rows: [
+      { sku:'SKU-4821', product:'Winter Coats (L/XL)', units:2400, last_sold:'Oct 2023', days_idle:240, hold_cost:'$18/unit', warehouse:'Seattle WA', risk:'high',   scenario:'SKU-4821: 2,400 units of Winter Coats (L/XL), last sold Oct 2023, idle 240 days, holding cost $18/unit/month, stored in Seattle WA warehouse, category: seasonal apparel' },
+      { sku:'SKU-2233', product:'Bluetooth Headphones', units:850,  last_sold:'Jan 2024', days_idle:150, hold_cost:'$9/unit',  warehouse:'Dallas TX',  risk:'medium', scenario:'SKU-2233: 850 units of Bluetooth Headphones (model BH-200), last sold Jan 2024, idle 150 days, holding cost $9/unit/month, stored in Dallas TX, superseded by newer model BH-300' },
+      { sku:'SKU-7701', product:'Yoga Mats (6mm)',      units:3100, last_sold:'Mar 2024', days_idle:90,  hold_cost:'$4/unit',  warehouse:'Chicago IL', risk:'medium', scenario:'SKU-7701: 3,100 units of Yoga Mats 6mm, last sold Mar 2024, idle 90 days, holding cost $4/unit/month, stored in Chicago IL, demand dropped post-pandemic fitness peak' },
+      { sku:'SKU-1190', product:'LED Desk Lamps',       units:420,  last_sold:'Aug 2023', days_idle:300, hold_cost:'$12/unit', warehouse:'Newark NJ',  risk:'high',   scenario:'SKU-1190: 420 units of LED Desk Lamps, last sold Aug 2023, idle 300 days, holding cost $12/unit/month, Newark NJ warehouse, discontinued product line, no reorder planned' },
+      { sku:'SKU-5544', product:'Protein Powder 2lb',   units:680,  last_sold:'May 2024', days_idle:45,  hold_cost:'$6/unit',  warehouse:'Phoenix AZ', risk:'low',    scenario:'SKU-5544: 680 units of Protein Powder 2lb (vanilla), last sold May 2024, idle 45 days, holding cost $6/unit/month, Phoenix AZ, expiry date Dec 2024, seasonal slowdown expected' },
+    ]
+  },
+  health: {
+    label: '// PATIENT DATABASE — select a record to analyze',
+    headers: ['Patient ID', 'Condition', 'Last Visit', 'Days Gap', 'Overdue Screenings', 'Risk Score', 'Insurance', 'Risk'],
+    rows: [
+      { id:'PT-7742', condition:'Type 2 Diabetes',    last_visit:'Jan 2024', days_gap:180, overdue:'HbA1c, retinal exam, foot exam', risk_score:'8.2', insurance:'Medicare',  risk:'high',   scenario:'Patient PT-7742: Type 2 Diabetes, last visit Jan 2024, 180-day gap, overdue HbA1c test, retinal screening, and foot exam, missed 2 scheduled follow-ups, Medicare patient, age 67' },
+      { id:'PT-3381', condition:'Hypertension',       last_visit:'Mar 2024', days_gap:90,  overdue:'BP check, kidney function',      risk_score:'6.5', insurance:'BlueCross', risk:'medium', scenario:'Patient PT-3381: Hypertension on 3 medications, last visit Mar 2024, 90-day gap, overdue BP monitoring and kidney function panel, last BP reading 148/92, BlueCross insured' },
+      { id:'PT-9920', condition:'Breast Cancer (remission)', last_visit:'Nov 2023', days_gap:210, overdue:'Mammogram, oncology consult', risk_score:'9.1', insurance:'Aetna', risk:'high', scenario:'Patient PT-9920: Breast cancer in remission (Stage II, 2021), last visit Nov 2023, 210-day gap, overdue annual mammogram and oncology follow-up, on tamoxifen, Aetna insured, age 54' },
+      { id:'PT-6614', condition:'Asthma (moderate)',  last_visit:'Apr 2024', days_gap:60,  overdue:'Pulmonary function test',         risk_score:'4.3', insurance:'Medicaid', risk:'low',    scenario:'Patient PT-6614: Moderate persistent asthma, last visit Apr 2024, 60-day gap, overdue pulmonary function test, inhaler refill due, 2 ER visits last year, Medicaid insured, age 29' },
+      { id:'PT-2257', condition:'Depression + Anxiety', last_visit:'Feb 2024', days_gap:150, overdue:'Psych follow-up, PHQ-9 screen', risk_score:'7.8', insurance:'UnitedHealth', risk:'high', scenario:'Patient PT-2257: Depression and generalized anxiety disorder, last visit Feb 2024, 150-day gap, overdue psychiatric follow-up and PHQ-9 screening, on sertraline 100mg, prior hospitalization 2022, UnitedHealth insured' },
+    ]
+  }
+};
+
 let domain = 'supply';
+let selectedRecord = null;
 let running = false;
 let startTime = 0;
 
 function setDomain(d) {
   domain = d;
+  selectedRecord = null;
   document.getElementById('btn-supply').className = 'domain-btn' + (d==='supply'?' active':'');
   document.getElementById('btn-health').className = 'domain-btn' + (d==='health'?' active':'');
-  const ta = document.getElementById('scenario');
-  ta.placeholder = d === 'supply'
-    ? "e.g. 'SKU-4821: 2,400 units winter coats, last sold Oct 2023, holding cost $18/unit/month, 3 regional warehouses'"
-    : "e.g. 'Patient ID 7742: diabetic, last HbA1c Jan 2024, missed 2 follow-ups, overdue for retinal screening and foot exam'";
+  document.getElementById('selected-box').innerHTML = '&#8212; select a row above to load it into the pipeline';
+  document.getElementById('db-label').textContent = DB[d].label;
+  renderTable();
+  resetNodes();
+  document.getElementById('terminal').innerHTML = '<div class="t-line t-muted"># select a record from the database above</div>';
+  document.getElementById('metricsRow').style.display = 'none';
+  setStatus('ready · select a record to begin', false);
+}
+
+function renderTable() {
+  const data = DB[domain];
+  let html = '<table class="db-table"><thead><tr>';
+  data.headers.forEach(h => html += '<th>'+h+'</th>');
+  html += '</tr></thead><tbody>';
+  data.rows.forEach((row, i) => {
+    const riskClass = row.risk === 'high' ? 'badge-red' : row.risk === 'medium' ? 'badge-yellow' : 'badge-green';
+    html += '<tr onclick="selectRecord('+i+')" id="row-'+i+'">';
+    if (domain === 'supply') {
+      html += '<td>'+row.sku+'</td><td>'+row.product+'</td><td>'+row.units.toLocaleString()+'</td><td>'+row.last_sold+'</td><td>'+row.days_idle+'d</td><td>'+row.hold_cost+'</td><td>'+row.warehouse+'</td>';
+    } else {
+      html += '<td>'+row.id+'</td><td>'+row.condition+'</td><td>'+row.last_visit+'</td><td>'+row.days_gap+'d</td><td>'+row.overdue+'</td><td>'+row.risk_score+'</td><td>'+row.insurance+'</td>';
+    }
+    html += '<td><span class="badge '+riskClass+'">'+row.risk+'</span></td></tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('db-container').innerHTML = html;
+}
+
+function selectRecord(i) {
+  selectedRecord = DB[domain].rows[i];
+  document.querySelectorAll('.db-table tr').forEach((r,idx) => {
+    if (idx > 0) r.className = (idx-1 === i) ? 'selected' : '';
+  });
+  const box = document.getElementById('selected-box');
+  box.innerHTML = '<span>record loaded &rarr;</span> ' + selectedRecord.scenario;
+  resetNodes();
+  document.getElementById('terminal').innerHTML = '<div class="t-line t-muted"># record loaded · click run pipeline to begin analysis</div>';
+  document.getElementById('metricsRow').style.display = 'none';
+  setStatus('record selected · ready to run', false);
 }
 
 function resetNodes() {
@@ -142,48 +219,42 @@ function setStatus(text, live) {
   document.getElementById('statusDot').className = 'status-dot' + (live?' live':'');
 }
 
-async function callClaude(systemPrompt, userMsg) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+async function callGemini(systemPrompt, userMsg) {
+  const res = await fetch(GEMINI_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': API_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
-      system: systemPrompt,
-      messages: [{role:'user', content: userMsg}]
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: 'user', parts: [{ text: userMsg }] }],
+      generationConfig: { temperature: 0.3, maxOutputTokens: 1000 }
     })
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message);
-  return data.content[0].text;
+  return data.candidates[0].content.parts[0].text;
 }
 
 function parseNodeOutput(text) {
   try { return JSON.parse(text.replace(/```json|```/g,'').trim()); }
-  catch(e) { return {raw: text}; }
+  catch(e) { return { raw: text }; }
 }
 
 const nodePrompts = {
   supply: [
-    {sys:`You are the Detect node in a supply chain AI pipeline. Analyze the input and output ONLY a JSON object with: flags (array of 2-3 strings describing what was detected), signal_count (number), confidence (0.0-1.0), next_node (string "retrieve"). Be concise.`,label:'detect'},
-    {sys:`You are the Retrieve node. Given detected flags, simulate RAG retrieval. Output ONLY JSON with: retrieved_docs (array of 2-3 short strings describing what was found), context_quality (string "high/medium/low"), next_node "reason".`,label:'retrieve'},
-    {sys:`You are the Reason node (LLM planner). Given context, reason about root causes. Output ONLY JSON with: root_cause (string, 1 sentence), risk_level (string "high/medium/low"), reasoning_steps (array of 2 short strings), confidence (0.0-1.0), next_node "act".`,label:'reason'},
-    {sys:`You are the Act (MCP) node. Simulate tool calls for supply chain. Output ONLY JSON with: tools_called (array of 2 strings like "inventory_api.get_warehouse_capacity"), tool_results (array of 2 short result strings), next_node "human_loop".`,label:'act(mcp)'},
-    {sys:`You are the Human Loop node. Assess if human review is needed. Output ONLY JSON with: review_required (boolean), reason (string, 1 sentence), confidence_gate (number 0.0-1.0), approved (boolean true), next_node "recommend".`,label:'human_loop'},
-    {sys:`You are the Recommend node. Generate final supply chain recommendations. Output ONLY JSON with: primary_action (string), options (array of 3 objects each with action and expected_impact strings), financial_recovery_estimate (string), priority (string "urgent/high/medium").`,label:'recommend'}
+    {sys:`You are the Detect node in a supply chain AI pipeline. Analyze the inventory record and output ONLY valid JSON with: flags (array of 2-3 strings of specific issues detected), signal_count (number), confidence (0.0-1.0), next_node "retrieve". No extra text, only JSON.`,label:'detect'},
+    {sys:`You are the Retrieve node. Simulate RAG retrieval over inventory history and supplier docs. Output ONLY valid JSON with: retrieved_docs (array of 2-3 short strings of what was retrieved), context_quality ("high","medium","low"), next_node "reason". Only JSON.`,label:'retrieve'},
+    {sys:`You are the Reason node (LLM planner). Reason about the root cause of the inventory issue. Output ONLY valid JSON with: root_cause (1 sentence), risk_level ("high","medium","low"), reasoning_steps (array of 2 strings), confidence (0.0-1.0), next_node "act". Only JSON.`,label:'reason'},
+    {sys:`You are the Act (MCP) node. Simulate standardized tool calls to inventory and logistics systems. Output ONLY valid JSON with: tools_called (array of 2 specific strings like "inventory_api.get_warehouse_capacity('Seattle')"), tool_results (array of 2 short result strings), next_node "human_loop". Only JSON.`,label:'act(mcp)'},
+    {sys:`You are the Human Loop node. Decide if this decision needs human review before proceeding. Output ONLY valid JSON with: review_required (boolean), reason (1 sentence), confidence_gate (0.0-1.0), approved (boolean true), next_node "recommend". Only JSON.`,label:'human_loop'},
+    {sys:`You are the Recommend node. Generate specific, actionable supply chain recommendations. Output ONLY valid JSON with: primary_action (string), options (array of 3 objects, each with action and expected_impact strings), financial_recovery_estimate (string), priority ("urgent","high","medium"). Only JSON.`,label:'recommend'}
   ],
   health: [
-    {sys:`You are the Detect node in a healthcare AI pipeline. Analyze the patient input and output ONLY JSON with: care_gaps (array of 2-3 strings), risk_flags (array of 2 strings), signal_count (number), confidence (0.0-1.0), next_node "retrieve".`,label:'detect'},
-    {sys:`You are the Retrieve node. Simulate RAG over clinical knowledge. Output ONLY JSON with: retrieved_docs (array of 2-3 short strings like clinical guideline names), context_quality "high/medium/low", next_node "reason".`,label:'retrieve'},
-    {sys:`You are the Reason node (clinical planner). Reason about care gaps. Output ONLY JSON with: clinical_assessment (string, 1 sentence), risk_level "high/medium/low", reasoning_steps (array of 2 short strings), confidence (0.0-1.0), next_node "act".`,label:'reason'},
-    {sys:`You are the Act (MCP) node for healthcare. Output ONLY JSON with: tools_called (array of 2 strings like "ehr_api.get_last_visit"), tool_results (array of 2 short result strings), next_node "human_loop".`,label:'act(mcp)'},
-    {sys:`You are the Human Loop node for a clinical pathway. Output ONLY JSON with: review_required (boolean), reason (string, 1 sentence), confidence_gate (number 0.0-1.0), clinician_approved (boolean true), next_node "recommend".`,label:'human_loop'},
-    {sys:`You are the Recommend node for healthcare. Output ONLY JSON with: primary_action (string), care_pathway (array of 3 objects each with step and rationale strings), outreach_priority "urgent/high/medium", estimated_risk_reduction (string).`,label:'recommend'}
+    {sys:`You are the Detect node in a healthcare AI pipeline. Analyze the patient record and output ONLY valid JSON with: care_gaps (array of 2-3 specific strings), risk_flags (array of 2 strings), signal_count (number), confidence (0.0-1.0), next_node "retrieve". Only JSON.`,label:'detect'},
+    {sys:`You are the Retrieve node for healthcare. Simulate RAG over clinical guidelines and patient history. Output ONLY valid JSON with: retrieved_docs (array of 2-3 short strings of specific guidelines or records retrieved), context_quality ("high","medium","low"), next_node "reason". Only JSON.`,label:'retrieve'},
+    {sys:`You are the Reason node (clinical planner). Reason about the patient's care gaps. Output ONLY valid JSON with: clinical_assessment (1 sentence), risk_level ("high","medium","low"), reasoning_steps (array of 2 strings), confidence (0.0-1.0), next_node "act". Only JSON.`,label:'reason'},
+    {sys:`You are the Act (MCP) node for healthcare. Simulate EHR and scheduling tool calls. Output ONLY valid JSON with: tools_called (array of 2 specific strings like "ehr_api.get_last_lab_results('PT-7742')"), tool_results (array of 2 short result strings), next_node "human_loop". Only JSON.`,label:'act(mcp)'},
+    {sys:`You are the Human Loop node for a clinical pathway. Decide if clinician review is needed. Output ONLY valid JSON with: review_required (boolean), reason (1 sentence), confidence_gate (0.0-1.0), clinician_approved (boolean true), next_node "recommend". Only JSON.`,label:'human_loop'},
+    {sys:`You are the Recommend node for healthcare. Generate specific care pathway recommendations. Output ONLY valid JSON with: primary_action (string), care_pathway (array of 3 objects each with step and rationale strings), outreach_priority ("urgent","high","medium"), estimated_risk_reduction (string). Only JSON.`,label:'recommend'}
   ]
 };
 
@@ -210,9 +281,9 @@ function renderNodeOutput(label, data) {
 
 async function runPipeline() {
   if (running) return;
-  const scenario = document.getElementById('scenario').value.trim();
-  if (!scenario) { alert('Enter a scenario first'); return; }
-  if (API_KEY === 'sk-ant-YOUR-KEY-HERE') { alert('Add your Anthropic API key to the HTML file first (line 3 of the script).'); return; }
+  if (!selectedRecord) { alert('Select a record from the database first'); return; }
+  if (API_KEY === 'YOUR-GEMINI-KEY-HERE') { alert('Add your Gemini API key to the HTML file.\n\nGet it free at: aistudio.google.com -> Get API Key'); return; }
+
   running = true;
   startTime = Date.now();
   document.getElementById('runBtn').disabled = true;
@@ -222,10 +293,11 @@ async function runPipeline() {
   setStatus('pipeline running...', true);
   log('<span class="t-muted">$ python agent_pipeline.py --domain='+domain+'</span>');
   log('<span class="t-muted">initializing AgentState(context, memory, tools)...</span>');
+  log('<span class="t-muted">record loaded: '+selectedRecord.scenario.substring(0,60)+'...</span>');
   log('');
 
   const prompts = nodePrompts[domain];
-  let context = scenario;
+  let context = selectedRecord.scenario;
   let lastData = {};
   let finalConfidence = 0.85;
   let hitlTriggered = false;
@@ -234,7 +306,10 @@ async function runPipeline() {
     for (let i = 0; i < 6; i++) {
       setNode(i, 'active');
       setStatus('running node_'+(i+1)+': '+prompts[i].label, true);
-      const response = await callClaude(prompts[i].sys, 'Scenario: ' + context + (i > 0 ? '\nPrevious output: ' + JSON.stringify(lastData) : ''));
+      const response = await callGemini(
+        prompts[i].sys,
+        'Record: ' + context + (i > 0 ? '\nPrevious node output: ' + JSON.stringify(lastData) : '')
+      );
       lastData = parseNodeOutput(response);
       if (lastData.confidence || lastData.confidence_gate) finalConfidence = lastData.confidence || lastData.confidence_gate;
       if (lastData.review_required !== undefined) hitlTriggered = lastData.review_required;
@@ -253,11 +328,13 @@ async function runPipeline() {
     document.getElementById('metricsRow').style.display = 'grid';
   } catch(e) {
     log('<span class="t-err">error: '+e.message+'</span>');
-    setStatus('error', false);
+    setStatus('error · check API key', false);
   }
   running = false;
   document.getElementById('runBtn').disabled = false;
 }
+
+renderTable();
 </script>
 </body>
 </html>

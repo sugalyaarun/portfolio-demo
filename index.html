@@ -111,10 +111,7 @@ body{background:#0d1117;display:flex;justify-content:center;padding:40px 16px}
 // Get one free at: aistudio.google.com -> Get API Key
 // No credit card needed
 // ===================================================
-const API_KEY = 'AIzaSyB3pLMg3_-AuZ3Cx8LS1tNRWn195MvuFTU';
-// ===================================================
-
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + API_KEY;
+const GEMINI_URL = '/api/public/gemini-proxy';
 
 const DB = {
   supply: {
@@ -282,8 +279,7 @@ function renderNodeOutput(label, data) {
 async function runPipeline() {
   if (running) return;
   if (!selectedRecord) { alert('Select a record from the database first'); return; }
-  if (API_KEY === 'YOUR-GEMINI-KEY-HERE') { alert('Add your Gemini API key to the HTML file.\n\nGet it free at: aistudio.google.com -> Get API Key'); return; }
-
+ 
   running = true;
   startTime = Date.now();
   document.getElementById('runBtn').disabled = true;
